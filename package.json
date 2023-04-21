@@ -2,7 +2,8 @@
   "name": "hop-api",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "type": "module",
+  "main": "server.js",
   "scripts": {
     "dev": "nodemon --experimental-specifier-resolution=node server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
