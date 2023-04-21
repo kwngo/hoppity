@@ -1,5 +1,20 @@
-const Koa = require('koa');
+import Koa from 'koa';
+import Router from '@koa/router'
+import cors from '@koa/cors'
+import bodyParser from 'koa-bodyparser'
 const app = new Koa();
+
+
+app.use(cors({ origin: [
+    "http://localhost:3000",
+], 
+methods: ['GET', 'PUT', 'POST'], 
+allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'], 
+credentials: true, 
+maxAge: 600, 
+exposedHeaders: ['*', 'Authorization' ] 
+}));
+app.use(bodyParser());
 
 // logger
 
