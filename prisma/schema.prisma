@@ -13,6 +13,7 @@ datasource db {
 model User {
   id             String       @id @default(uuid())
   email   String   @unique @db.VarChar(255)
+  username   String   @unique @db.VarChar(255)
   passwordDigest String  @db.VarChar(255) @map("password_digest")
   emailVerified Boolean? @default(false) @map("email_verified")
   emailVerifiedAt DateTime? @db.Timestamptz(6) @map("email_verified_at")

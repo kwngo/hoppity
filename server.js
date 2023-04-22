@@ -3,14 +3,16 @@ import Router from '@koa/router'
 import cors from '@koa/cors'
 import bodyParser from 'koa-bodyparser'
 import Session from 'koa-session'
-import { PrismaClient } from '@prisma/client'
+import Bcrypt from 'bcrypt'
 import CryptoJS from 'crypto-js'
 import AES from 'crypto-js/aes'
 import crypto from 'crypto'
 import * as dotenv from 'dotenv' 
 import { Client, envs } from 'stytch';
+import { PrismaClient } from '@prisma/client';
 import sgMail from '@sendgrid/mail'
 import {DateTime} from 'luxon';
+import Joi from 'joi';
 
 import products from './api/products'
 
@@ -79,7 +81,7 @@ const auth = new Router({
 
 auth.post('/signup', async(ctx) => {
 	const schema = Joi.object({
-        username: Joi.date().required(),
+        username: Joi.string().required(),
 		email: Joi.string().email({ tlds: { allow: false } }).required(),
 		password: Joi.string()
 			.pattern(new RegExp('^[a-zA-Z0-9]{3,30}$')).required(),
@@ -110,22 +112,10 @@ auth.post('/signup', async(ctx) => {
 		const newUser = await prisma.user.create({
 			data: {
 				email: email,
+                username: username,
 				passwordDigest: passwordDigest,
 				emailVerificationToken: emailVerificationToken,
 				emailVerificationTokenExpiresAt: DateTime.now().plus({hours: 4}).toJSDate(),
-				settings: {
-					create: {
-						firstName: firstName,
-						country: country,
-					}
-				},
-				registry: {
-					create: {
-						name: registryName,
-						partnerFirstName: partnerFirstName,
-						babyDueDate: dueDate,
-					}
-				}
 			}
 		})
 		let encryptedCookie = AES.encrypt(ctx.request.body.email, SESSION_SECRET_KEY).toString()
@@ -162,6 +152,28 @@ auth.post('/signup', async(ctx) => {
 
 })
 
+auth.get('/me', async(ctx) => {
+	if (!ctx.cookies.get('koa.sess')) {
+		ctx.status = 401;
+		ctx.body = {"message": "Unauthenticated"};
+		return
+	}
+	try {
+		let bytes = AES.decrypt(ctx.cookies.get('koa.sess'), SESSION_SECRET_KEY) 
+		let user = await prisma.user.findUnique({ where: {email: bytes.toString(CryptoJS.enc.Utf8) }})
+		ctx.status = 200
+
+
+		ctx.body = {
+			email: user.email,
+		}
+	} catch(e) {
+		ctx.status = 400;
+		console.error(e)
+		ctx.body = {'message': e}
+	}
+})
+
 auth.post('/login', async(ctx) =>{
 	if (ctx.cookies.get('koa.sess')) {
 		ctx.status = 201;
@@ -180,10 +192,10 @@ auth.post('/login', async(ctx) =>{
 			ctx.status = 400
 			ctx.body = {message: 'User not found'}
 		} 
-		if (!user.emailVerified) {
-			ctx.status = 400
-			ctx.body = {message: 'User email not verified'}
-		}
+		// if (!user.emailVerified) {
+		// 	ctx.status = 400
+		// 	ctx.body = {message: 'User email not verified'}
+		// }
 		await Bcrypt.compare(ctx.request.body.password, user.passwordDigest)
 		let encryptedCookie = AES.encrypt(ctx.request.body.email, SESSION_SECRET_KEY).toString()
 		ctx.cookies.set('koa.sess', encryptedCookie, { httpOnly: true, 
