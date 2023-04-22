@@ -25,3 +25,29 @@ model User {
 
   @@map("users")
 }
+
+model Brand {
+  id             String       @id @default(uuid())
+  name   String   @unique @db.VarChar(255)
+  description String @db.Text
+  products Product[]
+
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+}
+
+model Product {
+  id             String       @id @default(uuid())
+  amount Decimal @db.Decimal(65,30)
+  description String @db.Text
+  thumbnail String @db.VarChar(255)
+  primaryImage String @db.VarChar(255) @map("primary_image")
+  tags String[]
+  brandId String @map("brand_id")
+  brand Brand @relation(fields: [brandId], references: [id])
+
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  @@map("products")
+}
