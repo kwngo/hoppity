@@ -1,0 +1,1 @@
+export const SESSION_SECRET_KEY = process.env.NODE_ENV == 'development' ? 'fakesecretkey' : process.env.SESSION_SECRET_KEY;

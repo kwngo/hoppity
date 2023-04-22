@@ -12,6 +12,7 @@ import { Client, envs } from 'stytch';
 import sgMail from '@sendgrid/mail'
 import {DateTime} from 'luxon';
 
+import products from './api/products'
 
 const app = new Koa();
 
@@ -200,4 +201,6 @@ auth.post('/login', async(ctx) =>{
 })
 
 app.use(auth.routes())
+app.use(products.routes())
+
 app.listen(4545);

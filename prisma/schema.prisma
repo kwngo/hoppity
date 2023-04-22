@@ -38,8 +38,9 @@ model Brand {
 
 model Product {
   id             String       @id @default(uuid())
-  amount Decimal @db.Decimal(65,30)
+  name   String   @unique @db.VarChar(255)
   description String @db.Text
+  amount Decimal @db.Decimal(65,30)
   thumbnail String @db.VarChar(255)
   primaryImage String @db.VarChar(255) @map("primary_image")
   tags String[]
