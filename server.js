@@ -2,22 +2,44 @@ import Koa from 'koa';
 import Router from '@koa/router'
 import cors from '@koa/cors'
 import bodyParser from 'koa-bodyparser'
+import Session from 'koa-session'
+import { PrismaClient } from '@prisma/client'
+import CryptoJS from 'crypto-js'
+import AES from 'crypto-js/aes'
+import crypto from 'crypto'
 import * as dotenv from 'dotenv' 
 import { Client, envs } from 'stytch';
+import sgMail from '@sendgrid/mail'
+import {DateTime} from 'luxon';
+
 
 const app = new Koa();
 
 dotenv.config()
 
-const HOST = `http://localhost:4545`
-const magicLinkUrl = `${HOST}/authenticate`
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const stytchClient = new Client({
-    project_id: process.env.STYTCH_PROJECT_ID,
-    secret: process.env.STYTCH_SECRET,
-    env: envs.test,
-}
-);
+const saltRounds = 10;
+
+const SESSION_SECRET_KEY = process.env.NODE_ENV == 'development' ? 'fakesecretkey' : process.env.SESSION_SECRET_KEY;
+const prisma = new PrismaClient()
+
+const CONFIG = {
+	key: 'koa.sess', /** (string) cookie key (default is koa.sess) */
+	/** (number || 'session') maxAge in ms (default is 1 days) */
+	/** 'session' will result in a cookie that expires when session/browser is closed */
+	/** Warning: If a session cookie is stolen, this cookie will never expire */
+	maxAge: 86400000,
+	autoCommit: true, /** (boolean) automatically commit headers (default true) */
+	overwrite: true, /** (boolean) can overwrite or not (default true) */
+	httpOnly: true, /** (boolean) httpOnly or not (default true) */
+	signed: true, /** (boolean) signed or not (default true) */
+	rolling: false, /** (boolean) Force a session identifier cookie to be set on every response. The expiration is reset to the original maxAge, resetting the expiration countdown. (default is false) */
+	renew: false, /** (boolean) renew session when session is nearly expired, so we can always keep user logged in. (default is false)*/
+	secure: true, /** (boolean) secure cookie*/
+	sameSite: null, /** (string) session cookie sameSite options (default null, don't set it) */
+};
+
 
 app.use(cors({ origin: [
     "http://localhost:3000",
@@ -29,6 +51,7 @@ maxAge: 600,
 exposedHeaders: ['*', 'Authorization' ] 
 }));
 app.use(bodyParser());
+app.use(Session(CONFIG, app))
 
 // logger
 
@@ -53,22 +76,127 @@ const auth = new Router({
     prefix: '/auth'
 })
 
-auth.post('/login_or_create_user', async(ctx) => {
-    const params = {
-        email: ctx.request.body.email,
-        login_magic_link_url: magicLinkUrl,
-        signup_magic_link_url: magicLinkUrl,
-    };
-    const auth = await stytchClient.magicLinks.email.loginOrCreate(params)
-    ctx.status = 200
-    ctx.body = auth
+auth.post('/signup', async(ctx) => {
+	const schema = Joi.object({
+        username: Joi.date().required(),
+		email: Joi.string().email({ tlds: { allow: false } }).required(),
+		password: Joi.string()
+			.pattern(new RegExp('^[a-zA-Z0-9]{3,30}$')).required(),
+		passwordConfirmation: Joi.ref('password'),
+	})
+	try {
+		await schema.validateAsync(ctx.request.body)
+		const {
+            username,
+			email,
+			password,
+		} = ctx.request.body
+
+		let user = await prisma.user.findUnique({
+			where: {
+				email: ctx.request.body.email
+			}
+		})
+		if (user != null) {
+			ctx.status = 400
+			ctx.body = {message: 'Email already exists'}
+			return
+		}
+		let salt = await Bcrypt.genSalt(saltRounds)
+		let passwordDigest = await Bcrypt.hash(password, salt)
+		let emailVerificationToken = crypto.randomBytes(16).toString('hex')
+
+		const newUser = await prisma.user.create({
+			data: {
+				email: email,
+				passwordDigest: passwordDigest,
+				emailVerificationToken: emailVerificationToken,
+				emailVerificationTokenExpiresAt: DateTime.now().plus({hours: 4}).toJSDate(),
+				settings: {
+					create: {
+						firstName: firstName,
+						country: country,
+					}
+				},
+				registry: {
+					create: {
+						name: registryName,
+						partnerFirstName: partnerFirstName,
+						babyDueDate: dueDate,
+					}
+				}
+			}
+		})
+		let encryptedCookie = AES.encrypt(ctx.request.body.email, SESSION_SECRET_KEY).toString()
+		ctx.cookies.set('koa.sess', encryptedCookie, { httpOnly: true, 
+			secure: process.env.NODE_ENV === "production" ? true : false,
+			domain: process.env.NODE_ENV === "development" ? "localhost" : ""
+		})
+
+
+		let msg = {
+			from: "kareem.kwong@hey.com", // verified sender email
+			personalizations: [{
+				to: [
+					{email: ctx.request.body.email}
+				],
+				dynamic_template_data: {verifyUrl: `http://localhost:3001/onboarding?verification_token=${emailVerificationToken}`,
+				subject: "Verify your email", // Subject line
+			}
+			}],
+			template_id: 'd-c4b4d87118384095a3ad7dff94066500'
+		} 
+
+		const mailInfo = await sgMail.send(msg);
+
+		console.log("Message sent: %s", mailInfo);
+
+		ctx.status = 200;
+		ctx.body = {"message": "success"}
+	} catch(err) {
+		ctx.status = 500
+		console.error(err)
+		ctx.body = {message: "Error"} 
+	}
+
 })
 
-auth.get('/authenticate', async(ctx) => {
-    const queryObject = url.parse(req.url,true).query;
+auth.post('/login', async(ctx) =>{
+	if (ctx.cookies.get('koa.sess')) {
+		ctx.status = 201;
+		ctx.body = {"message": "Already logged in"};
+		return
+	}
+	const schema = Joi.object({
+		email: Joi.string().required(),
+		password: Joi.string()
+			.pattern(new RegExp('^[a-zA-Z0-9]{3,30}$')).required()
+	})
+	try {
+		await schema.validateAsync(ctx.request.body)
+		let user = await prisma.user.findUnique({where:{email: ctx.request.body.email}})
+		if (!user) {
+			ctx.status = 400
+			ctx.body = {message: 'User not found'}
+		} 
+		if (!user.emailVerified) {
+			ctx.status = 400
+			ctx.body = {message: 'User email not verified'}
+		}
+		await Bcrypt.compare(ctx.request.body.password, user.passwordDigest)
+		let encryptedCookie = AES.encrypt(ctx.request.body.email, SESSION_SECRET_KEY).toString()
+		ctx.cookies.set('koa.sess', encryptedCookie, { httpOnly: true, 
+			secure: process.env.NODE_ENV === "production" ? true : false,
+			domain: process.env.NODE_ENV === "development" ? "localhost" : ""
+		})
+		ctx.status = 200;
+		ctx.body = {'authenticated': true, 'email': user.email}
+	} catch(err){
+		ctx.status = 500
+		console.log(err)
+		ctx.body = {message: err}
+	}
 
-    const auth = await stytchClient.magicLinks.authenticate(ctx.request.query.token)
-    console.log(auth)
 })
 
 app.use(auth.routes())
