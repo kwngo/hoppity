@@ -21,6 +21,7 @@ model User {
   emailVerificationTokenExpiresAt DateTime? @db.Timestamptz(6) @map("email_verification_token_expires_at")
   passwordResetToken String? @db.VarChar(255) @map("password_reset_token")
   passwordResetTokenExpiresAt DateTime? @db.Timestamptz(6) @map("password_reset_token_expires_at")
+  productLikes ProductLike[]
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
@@ -37,9 +38,20 @@ model Brand {
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 }
 
+model ProductLike {
+  id             String       @id @default(uuid())
+  userId String @map("user_id")
+  user User @relation(fields: [userId], references: [id])
+  productId String @map("product_id")
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("product_likes")
+}
+
 model Product {
   id             String       @id @default(uuid())
   name   String   @unique @db.VarChar(255)
+  productType String @db.VarChar(255)
   description String @db.Text
   amount Decimal @db.Decimal(65,30)
   thumbnail String @db.VarChar(255)
@@ -47,6 +59,7 @@ model Product {
   tags String[]
   brandId String @map("brand_id")
   brand Brand @relation(fields: [brandId], references: [id])
+  likes ProductLike[]
 
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")

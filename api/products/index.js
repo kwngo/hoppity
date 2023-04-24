@@ -32,11 +32,11 @@ router.patch('/products/:id', async(ctx) => {
 	const schema = Joi.object({
 		name: Joi.string().required(),
 		description: Joi.string().required(),
+		productType: Joi.string().required(),
+		amount: Joi.number().required(),
 		thumbnail: Joi.string().required(),
 		primaryImage: Joi.string().required(),
-		price: Joi.string().required,
-		specs: Joi.object().required(),
-		highlights: Joi.array().required(),
+		brandId: Joi.string().required(),
 		tags: Joi.array().required()
 
 	})
@@ -50,23 +50,24 @@ router.patch('/products/:id', async(ctx) => {
 	try {
 		await schema.validateAsync(ctx.request.body)
 		const {
-			name, 
-			description, 
-			thumbnail, 
-			primaryImage, 
-			price, 
-			highlights, 
-			specs, 
-			tags
+			name,
+			description,
+			productType,
+			amount,
+			thumbnail,
+			primaryImage,
+			brandId,
+			tags,
 		} = ctx.request.body
 
-		let comment = await prisma.product.findFirst({ id: ctx.params.id })
+		let product = await prisma.product.findFirst({ id: ctx.params.id })
 		let updatedProduct = await prisma.product.update({
 			where: {
 				id: product.id,
 			},
 			data: {
 				name,
+				productType,
 				description,
 				thumbnail,
 				primaryImage,
@@ -77,11 +78,11 @@ router.patch('/products/:id', async(ctx) => {
 			}
 		})
 		ctx.status = 200;
-		ctx.body = {'message': 'Comment updated'}
+		ctx.body = {'message': 'Product updated'}
 	} catch(e) {
 		ctx.status = 400;
 		console.error(e)
-		ctx.body = {'message': 'Error creating new comment.'}
+		ctx.body = {'message': 'Error updating product.'}
 	}
 })
 
@@ -94,6 +95,7 @@ router.post('/products', async(ctx) => {
 	const schema = Joi.object({
 		name: Joi.string().required(),
 		description: Joi.string().required(),
+		productType: Joi.string().required(),
 		amount: Joi.number().required(),
 		thumbnail: Joi.string().required(),
 		primaryImage: Joi.string().required(),
@@ -105,11 +107,11 @@ router.post('/products', async(ctx) => {
 		const {
 			name,
 			description,
+			productType,
+			amount,
 			thumbnail,
 			primaryImage,
-			price,
-			highlights,
-			specs,
+			brandId,
 			tags
 		} = ctx.request.body
 		let bytes = AES.decrypt(ctx.cookies.get('koa.sess'), SESSION_SECRET_KEY) 
@@ -117,11 +119,11 @@ router.post('/products', async(ctx) => {
 			data: {
 				name,
 				description,
+				productType,
+				amount,
 				thumbnail,
 				primaryImage,
-				price,
-				highlights,
-				specs,
+				brandId,
 				tags,
 			}
 		})

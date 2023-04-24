@@ -161,11 +161,12 @@ auth.get('/me', async(ctx) => {
 	try {
 		let bytes = AES.decrypt(ctx.cookies.get('koa.sess'), SESSION_SECRET_KEY) 
 		let user = await prisma.user.findUnique({ where: {email: bytes.toString(CryptoJS.enc.Utf8) }})
+
 		ctx.status = 200
-
-
 		ctx.body = {
-			email: user.email,
+            loggedIn: true,
+            username: user.username,
+			email: user.email
 		}
 	} catch(e) {
 		ctx.status = 400;
