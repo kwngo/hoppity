@@ -1,13 +1,13 @@
 import Router from '@koa/router';
 import { PrismaClient } from '@prisma/client'
 import Joi from 'joi';
-import AES from 'crypto-js/aes'
+
 import { SESSION_SECRET_KEY } from '../../utils/vars';
 
 const prisma = new PrismaClient()
 
 const router = new Router({
-	prefix: '/products',
+	prefix: '/brands',
 });
 
 router.get('/', async(ctx) => {
@@ -19,10 +19,10 @@ router.get('/', async(ctx) => {
 	const schema = Joi.object({
 	})
 	try {
-		let products = await prisma.product.findMany()
+		let brands = await prisma.brand.findMany()
 		ctx.status = 200
 		ctx.body = {
-			'products': products
+            brands
 		}
 	} catch(e) {
 		ctx.status = 400
@@ -30,17 +30,11 @@ router.get('/', async(ctx) => {
 	}
 })
 
-router.patch('/:id', async(ctx) => {
+router.patch('/', async(ctx) => {
 	const schema = Joi.object({
+        id: Joi.string().required(),
 		name: Joi.string().required(),
 		description: Joi.string().required(),
-		productType: Joi.string().required(),
-		amount: Joi.number().required(),
-		thumbnail: Joi.string().required(),
-		primaryImage: Joi.string().required(),
-		brandId: Joi.string().required(),
-		tags: Joi.array().required()
-
 	})
 
 	if (!ctx.cookies.get('auth')) {
@@ -52,38 +46,27 @@ router.patch('/:id', async(ctx) => {
 	try {
 		await schema.validateAsync(ctx.request.body)
 		const {
+            id,
 			name,
 			description,
-			productType,
-			amount,
-			thumbnail,
-			primaryImage,
-			brandId,
-			tags,
 		} = ctx.request.body
 
-		let product = await prisma.product.findFirst({ id: ctx.params.id })
-		let updatedProduct = await prisma.product.update({
+		let brand = await prisma.brand.findFirst({ id: id })
+		let updatedProduct = await prisma.brand.update({
 			where: {
 				id: product.id,
 			},
 			data: {
 				name,
-				productType,
 				description,
-				thumbnail,
-				primaryImage,
-				amount,
-				brandId,
-				tags,
 			}
 		})
 		ctx.status = 200;
-		ctx.body = {'message': 'Product updated'}
+		ctx.body = {'message': 'Brand updated'}
 	} catch(e) {
 		ctx.status = 400;
 		console.error(e)
-		ctx.body = {'message': 'Error updating product.'}
+		ctx.body = {'message': 'Error updating brand.'}
 	}
 })
 
@@ -96,46 +79,27 @@ router.post('/', async(ctx) => {
 	const schema = Joi.object({
 		name: Joi.string().required(),
 		description: Joi.string().required(),
-		productType: Joi.string().required(),
-		amount: Joi.number().required(),
-		thumbnail: Joi.string().required(),
-		primaryImage: Joi.string().required(),
-		brandId: Joi.string().required(),
-		tags: Joi.array().required()
 	})
 	try {
 		await schema.validateAsync(ctx.request.body)
 		const {
 			name,
 			description,
-			productType,
-			amount,
-			thumbnail,
-			primaryImage,
-			brandId,
-			tags
 		} = ctx.request.body
-		let bytes = AES.decrypt(ctx.cookies.get('koa.sess'), SESSION_SECRET_KEY) 
-		let newProduct = await prisma.product.create({
+		let newBrand = await prisma.brand.create({
 			data: {
 				name,
 				description,
-				productType,
-				amount,
-				thumbnail,
-				primaryImage,
-				brandId,
-				tags,
 			}
 		})
 		ctx.status = 200
 		ctx.body = {
-			'message': 'Product successfully created.'
+			'message': 'Brand successfully created.'
 		}
 	} catch(e) {
 		ctx.status = 400
-		console.error(e)
-		ctx.body = {'message': 'Error creating product'}
+        console.error(e)
+		ctx.body = {'message': 'Error creating brand'}
 	}
 
 })

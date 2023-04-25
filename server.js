@@ -15,6 +15,7 @@ import {DateTime} from 'luxon';
 import Joi from 'joi';
 
 import products from './api/products'
+import brands from './api/brands'
 
 const app = new Koa();
 
@@ -46,9 +47,10 @@ const CONFIG = {
 
 app.use(cors({ origin: [
     "http://localhost:3000",
+	"https://*.retool.com",
 ], 
-methods: ['GET', 'PUT', 'POST'], 
-allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'], 
+methods: ['GET', 'PUT', 'POST', 'DELETE'], 
+allowedHeaders: ['*'], 
 credentials: true, 
 maxAge: 600, 
 exposedHeaders: ['*', 'Authorization' ] 
@@ -214,6 +216,9 @@ auth.post('/login', async(ctx) =>{
 })
 
 app.use(auth.routes())
+
+
 app.use(products.routes())
+app.use(brands.routes())
 
 app.listen(4545);

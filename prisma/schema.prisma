@@ -36,6 +36,7 @@ model Brand {
 
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  @@map("brands")
 }
 
 model ProductLike {
